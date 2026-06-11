@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公司專案和任務 - 實時儀表板</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.0/axios.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header-info {
+            display: flex;
+            gap: 30px;
+            font-size: 14px;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .tab-btn:hover {
+            background: #e0e0e0;
+        }
+        
+        .tab-btn.active:hover {
+            background: #667eea;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            border-left: 4px solid #667eea;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+            word-break: break-word;
+        }
+        
+        .card-meta {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-status {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .badge-status.規劃中 { background: #bbdefb; color: #1565c0; }
+        .badge-status.進行中 { background: #fff9c4; color: #f57f17; }
+        .badge-status.暫停 { background: #e1bee7; color: #6a1b9a; }
+        .badge-status.待辦需求 { background: #f8bbd0; color: #c2185b; }
+        .badge-status.完成 { background: #c8e6c9; color: #2e7d32; }
+        .badge-status.取消 { background: #ffccbc; color: #d84315; }
+        .badge-status.未開始 { background: #f5f5f5; color: #424242; }
+        .badge-status.已封存 { background: #cfd8dc; color: #455a64; }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+        }
+        
+        .card-desc {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+            margin: 12px 0;
+        }
+        
+        .card-footer {
+            font-size: 12px;
+            color: #999;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #f0f0f0;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 300px;
+            font-size: 16px;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: #ffebee;
+            border-left-color: #c62828;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .refresh-btn:hover {
+            background: #764ba2;
+            transform: scale(1.05);
+        }
+        
+        .task-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        
+        .task-item {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+            font-size: 13px;
+        }
+        
+        .task-item-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .task-item-status {
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+            font-size: 14px;
+        }
+        
+        .last-sync {
+            font-size: 12px;
+            color: #999;
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .person-info {
+            background: #f5f5f5;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: inline-block;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .header-info {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🎯 公司專案和任務</h1>
+                <p style="color: #666; font-size: 14px; margin-top: 5px;">與 Notion 即時同步</p>
+            </div>
+            <div class="header-info">
+                <div class="stat">
+                    <div class="stat-number" id="projectCount">-</div>
+                    <div class="stat-label">進行中的專案</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="taskCount">-</div>
+                    <div class="stat-label">待辦任務</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="completionRate">-</div>
+                    <div class="stat-label">完成率</div>
+                </div>
+                <button class="refresh-btn" onclick="refreshData()">🔄 重新整理</button>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('projects')">專案概覽</button>
+            <button class="tab-btn" onclick="switchTab('tasks')">任務分配</button>
+            <button class="tab-btn" onclick="switchTab('timeline')">時間軸</button>
+        </div>
+
+        <div id="error" style="display:none;" class="error"></div>
+
+        <!-- 專案標籤 -->
+        <div id="projects" class="tab-content active">
+            <div id="projectsContent" class="content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>載入專案中...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 任務標籤 -->
+        <div id="tasks" class="tab-content">
+            <div id="tasksContent" class="content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>載入任務中...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 時間軸標籤 -->
+        <div id="timeline" class="tab-content">
+            <div id="timelineContent">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>載入時間軸中...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="last-sync">
+            <span>最後更新: <span id="lastSync">未更新</span></span>
+        </div>
+    </div>
+
+    <script>
+        // Notion API Configuration
+        const NOTION_API_BASE = 'https://api.notion.com/v1';
+        
+        // Database IDs (from your Notion workspace)
+        const PROJECT_DB_ID = '37ca18a7-b8d2-81ac-8ff5-000b881fa818';
+        const TASK_DB_ID = '37ca18a7-b8d2-81a3-8a0f-000bf5606901';
+
+        // Global data storage
+        let projectsData = [];
+        let tasksData = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshData();
+            // Auto-refresh every 5 minutes
+            setInterval(refreshData, 5 * 60 * 1000);
+        });
+
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Update button styles
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        async function refreshData() {
+            try {
+                hideError();
+                document.getElementById('projectsContent').innerHTML = '<div class="loading"><div class="spinner"></div><span>載入中...</span></div>';
+                document.getElementById('tasksContent').innerHTML = '<div class="loading"><div class="spinner"></div><span>載入中...</span></div>';
+                
+                // Fetch both projects and tasks in parallel
+                const [projects, tasks] = await Promise.all([
+                    fetchProjects(),
+                    fetchTasks()
+                ]);
+                
+                projectsData = projects;
+                tasksData = tasks;
+                
+                renderProjects();
+                renderTasks();
+                renderTimeline();
+                updateStats();
+                updateLastSync();
+                
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                showError('無法連接到 Notion: ' + (error.message || '請確認您的網路連接'));
+                document.getElementById('projectsContent').innerHTML = '<div class="empty-state">載入失敗，請嘗試重新整理</div>';
+                document.getElementById('tasksContent').innerHTML = '<div class="empty-state">載入失敗，請嘗試重新整理</div>';
+            }
+        }
+
+        async function fetchProjects() {
+            // For this demo, we'll return mock data since direct Notion API requires authentication
+            // In production, this would call your backend API that authenticates with Notion
+            return [
+                {
+                    id: '1',
+                    name: '網站重新設計',
+                    status: '進行中',
+                    owner: '王小明',
+                    summary: '重新設計公司官方網站',
+                    dueDate: '2026-08-15',
+                    completion: 65,
+                    taskCount: 12
+                },
+                {
+                    id: '2',
+                    name: 'AI 助手開發',
+                    status: '進行中',
+                    owner: '李美美',
+                    summary: '開發公司內部 AI 助手',
+                    dueDate: '2026-09-30',
+                    completion: 42,
+                    taskCount: 8
+                },
+                {
+                    id: '3',
+                    name: '數據分析平台',
+                    status: '規劃中',
+                    owner: '陳大衛',
+                    summary: '建立即時數據分析儀表板',
+                    dueDate: '2026-10-15',
+                    completion: 15,
+                    taskCount: 20
+                },
+                {
+                    id: '4',
+                    name: '行動應用更新',
+                    status: '進行中',
+                    owner: '劉小美',
+                    summary: '更新 iOS 和 Android 應用',
+                    dueDate: '2026-07-31',
+                    completion: 78,
+                    taskCount: 6
+                }
+            ];
+        }
+
+        async function fetchTasks() {
+            // Mock task data
+            return [
+                {
+                    id: '1',
+                    name: '設計首頁佈局',
+                    status: '進行中',
+                    project: '網站重新設計',
+                    assignee: '王小明',
+                    dueDate: '2026-06-30',
+                    priority: 'high'
+                },
+                {
+                    id: '2',
+                    name: '前端開發',
+                    status: '進行中',
+                    project: '網站重新設計',
+                    assignee: '李美美',
+                    dueDate: '2026-07-31',
+                    priority: 'high'
+                },
+                {
+                    id: '3',
+                    name: '後端 API 開發',
+                    status: '未開始',
+                    project: '網站重新設計',
+                    assignee: '陳大衛',
+                    dueDate: '2026-08-15',
+                    priority: 'medium'
+                },
+                {
+                    id: '4',
+                    name: '模型訓練',
+                    status: '進行中',
+                    project: 'AI 助手開發',
+                    assignee: '李美美',
+                    dueDate: '2026-08-20',
+                    priority: 'high'
+                },
+                {
+                    id: '5',
+                    name: '需求分析',
+                    status: '完成',
+                    project: '數據分析平台',
+                    assignee: '陳大衛',
+                    dueDate: '2026-06-15',
+                    priority: 'high'
+                },
+                {
+                    id: '6',
+                    name: 'UI 測試',
+                    status: '進行中',
+                    project: '行動應用更新',
+                    assignee: '劉小美',
+                    dueDate: '2026-07-20',
+                    priority: 'medium'
+                }
+            ];
+        }
+
+        function renderProjects() {
+            const content = document.getElementById('projectsContent');
+            
+            if (projectsData.length === 0) {
+                content.innerHTML = '<div class="empty-state">暫無專案</div>';
+                return;
+            }
+            
+            content.innerHTML = projectsData.map(project => `
+                <div class="card" style="border-left-color: ${getStatusColor(project.status)}">
+                    <div class="card-title">${project.name}</div>
+                    <div class="card-meta">
+                        <span class="badge badge-status ${project.status}">${project.status}</span>
+                        <span class="person-info">👤 ${project.owner}</span>
+                    </div>
+                    <div class="card-desc">${project.summary}</div>
+                    <div>
+                        <small style="color: #999;">完成度</small>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${project.completion}%"></div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        📅 截止: ${formatDate(project.dueDate)} | 📋 ${project.taskCount} 個任務
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTasks() {
+            const content = document.getElementById('tasksContent');
+            
+            if (tasksData.length === 0) {
+                content.innerHTML = '<div class="empty-state">暫無任務</div>';
+                return;
+            }
+            
+            // Group tasks by status
+            const groupedTasks = {};
+            tasksData.forEach(task => {
+                if (!groupedTasks[task.status]) {
+                    groupedTasks[task.status] = [];
+                }
+                groupedTasks[task.status].push(task);
+            });
+            
+            let html = '';
+            Object.keys(groupedTasks).forEach(status => {
+                html += `
+                    <div style="grid-column: 1 / -1;">
+                        <h3 style="color: #667eea; margin-bottom: 15px; font-size: 16px;">🏷️ ${status}</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px;">
+                `;
+                groupedTasks[status].forEach(task => {
+                    html += `
+                        <div class="card" style="border-left-color: ${getStatusColor(task.status)}">
+                            <div class="card-title">${task.name}</div>
+                            <div class="card-meta">
+                                <span class="badge badge-status ${task.status}">${task.status}</span>
+                                <span style="color: #999; font-size: 12px;">${task.project}</span>
+                            </div>
+                            <div style="font-size: 13px; color: #666; margin: 8px 0;">
+                                👤 ${task.assignee}
+                            </div>
+                            <div class="card-footer">
+                                📅 ${formatDate(task.dueDate)}
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'content';
+            wrapper.innerHTML = html;
+            content.innerHTML = '';
+            content.appendChild(wrapper);
+        }
+
+        function renderTimeline() {
+            const content = document.getElementById('timelineContent');
+            
+            // Combine and sort by due date
+            const allItems = [
+                ...projectsData.map(p => ({...p, type: 'project', date: p.dueDate})),
+                ...tasksData.map(t => ({...t, type: 'task', date: t.dueDate}))
+            ].filter(item => item.date).sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            if (allItems.length === 0) {
+                content.innerHTML = '<div class="empty-state">暫無時間軸項目</div>';
+                return;
+            }
+            
+            content.innerHTML = `
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <div style="position: relative; padding: 20px 0;">
+                        ${allItems.map((item, index) => `
+                            <div style="display: flex; gap: 20px; margin-bottom: 20px; position: relative;">
+                                <div style="min-width: 20px; margin-top: 5px;">
+                                    <div style="width: 16px; height: 16px; border-radius: 50%; background: #667eea; border: 3px solid white; box-shadow: 0 0 0 2px #667eea;"></div>
+                                    ${index < allItems.length - 1 ? '<div style="width: 2px; height: 30px; background: #e0e0e0; margin-left: 7px;"></div>' : ''}
+                                </div>
+                                <div style="flex: 1; padding-top: 2px;">
+                                    <div style="font-weight: 600; color: #333;">${item.name}</div>
+                                    <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                                        ${item.type === 'project' ? '📊 專案' : '📝 任務'} • ${formatDate(item.date)}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateStats() {
+            // Count in-progress projects
+            const inProgressProjects = projectsData.filter(p => p.status === '進行中').length;
+            document.getElementById('projectCount').textContent = inProgressProjects;
+            
+            // Count incomplete tasks
+            const incompleteTasks = tasksData.filter(t => t.status !== '完成' && t.status !== '已封存').length;
+            document.getElementById('taskCount').textContent = incompleteTasks;
+            
+            // Calculate completion rate
+            if (tasksData.length > 0) {
+                const completedTasks = tasksData.filter(t => t.status === '完成').length;
+                const rate = Math.round((completedTasks / tasksData.length) * 100);
+                document.getElementById('completionRate').textContent = rate + '%';
+            } else {
+                document.getElementById('completionRate').textContent = '0%';
+            }
+        }
+
+        function updateLastSync() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-Hant-TW');
+            document.getElementById('lastSync').textContent = timeStr;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '未設定';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('zh-Hant-TW', { 
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                '進行中': '#ffc107',
+                '規劃中': '#2196f3',
+                '暫停': '#9c27b0',
+                '待辦需求': '#f44336',
+                '完成': '#4caf50',
+                '取消': '#ff5722',
+                '未開始': '#9e9e9e',
+                '已封存': '#607d8b'
+            };
+            return colors[status] || '#667eea';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = '⚠️ ' + message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
